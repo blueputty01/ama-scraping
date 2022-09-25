@@ -3,6 +3,9 @@ from dotenv import load_dotenv
 
 import csv
 
+import requests
+import urllib
+
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.wait import WebDriverWait
@@ -16,7 +19,39 @@ load_dotenv(override=True)
 USERNAME = os.environ.get('USERNAME')
 PASSWORD = os.getenv('PASSWORD')
 
+
 def get():
+    url = "https://freida-admin.ama-assn.org/api/node/program"
+    params = {'filter[specialty][condition][operator]': 'IN',
+              'filter[specialty][condition][path]': 'field_specialty.drupal_internal__nid',
+              'filter[specialty][condition][value][]': '43521', }
+    url += f'?={urllib.parse.urlencode(params)}'
+
+    programs = []
+
+    while True:
+        r = requests.get(url)
+        response = r.json()
+
+        data = response['data']
+        for item in data:
+            attributes = item['attributes']
+
+            title = attributes['title']
+            link = attributes['path']
+            expanded = attributes['field_expanded']
+
+            programs.append({'title': title, 'link': link, 'expanded': expanded})
+            print(title, link, expanded)
+
+        next_url_dict = response['links']['next']
+        if next is None:
+            break
+
+        url = next_url_dict['href']
+
+    data = []
+
     browser_options = Options()
 
     driver = webdriver.Firefox(service=Service(GeckoDriverManager().install()), options=browser_options)
@@ -25,17 +60,13 @@ def get():
 
     delay = 20  # seconds
 
-    driver.get("https://fsso.ama-assn.org/login/account/login")
+    for program in programs:
+        if program['expanded'] is False:
+            data.append('Not expanded')
+            continue
+        driver.get(program['link'])
 
-    driver.find_element(By.ID, 'signupGo_username').send_keys(USERNAME)
-    driver.find_element(By.ID, 'signupGo_password').send_keys(PASSWORD)
-    driver.find_element(By.XPATH, '//button[@name="submitButton"]').click()
-
-    WebDriverWait(driver, delay).until(ec.url_matches('https://fsso.ama-assn.org/login/account/return'))
-
-    driver.get('https://freida.ama-assn.org/?check_logged_in=1')
-
-
+        driver.execute_script('window.localStorage.clear();')
 
     # with open(f'{idx}.csv', 'w', encoding="utf-8") as csv_output:
     #     writer = csv.writer(csv_output, lineterminator="\n")
@@ -46,4 +77,3 @@ def get():
 
 if __name__ == '__main__':
     get()
-
