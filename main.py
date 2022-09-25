@@ -8,7 +8,7 @@ import requests
 import urllib
 
 from selenium import webdriver
-from selenium.common import NoSuchElementException
+from selenium.common import NoSuchElementException, StaleElementReferenceException
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
@@ -27,7 +27,7 @@ PROGRAM = {}
 
 
 def parse_schema(dict, path):
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         lines = f.read().splitlines()
 
         current_section = ''
@@ -50,10 +50,11 @@ def login(driver):
     WebDriverWait(driver, 20).until(ec.url_to_be('https://fsso.ama-assn.org/login/account/return'))
 
     driver.get("https://freida.ama-assn.org")
-    sign_in_menu = driver.find_element(By.XPATH, '//span[contains(text(), "Sign In")]')
-    driver.execute_script("arguments[0].click();", sign_in_menu)
-    sign_in = driver.find_element(By.XPATH, '//a[contains(@title, "Sign In")]')
-    driver.execute_script("arguments[0].click();", sign_in)
+    menu = WebDriverWait(driver, 20).until(
+        ec.element_to_be_clickable((By.XPATH, '//div[contains(@class, "ama-ribbon__sign-in-dropdown ng-tns-c15-0")]')))
+    menu.click()
+    sign_in = WebDriverWait(driver, 20).until(ec.element_to_be_clickable((By.XPATH, '//a[@title="Sign In"]')))
+    sign_in.click()
 
     WebDriverWait(driver, 20).until(ec.url_to_be('https://freida.ama-assn.org/?check_logged_in=1'))
 
@@ -93,43 +94,51 @@ def get_urls():
     return programs
 
 
-def print_data(data):
-    with open('backup.json') as f:
+def write_data(data):
+    with open('backup.json', 'w+') as f:
         json.dump(data, f)
-    with open('data.csv', 'w') as f:
-        writer = csv.writer(f)
-
-        header = []
+    with open('data.csv', 'w+') as f:
+        header = ['Name', 'Link']
 
         for tab in [OVERVIEW, PROGRAM, FEATURES]:
             for section in tab:
-                for field in section:
+                header.append(section)
+                for field in tab[section]:
+                    field = field.replace('//', '')
                     header.append(field)
-            header.append(' ')
 
-        writer.writerow(header)
+        writer = csv.DictWriter(f, fieldnames=header)
+        writer.writeheader()
 
         for item in data:
-            to_write = []
+            to_write = {}
             for tab in item:
-                for section in tab:
-                    for field in section:
-                        to_write.append(field)
-                to_write.append(' ')
-
+                to_write.update(item[tab])
             writer.writerow(to_write)
 
 
 def parse_tab(driver, passed_dict):
-    data = []
+    data = {}
     for section in passed_dict:
         for field in passed_dict[section]:
-            try:
-                text = driver.find_element(By.XPATH, f'//td[contains(text(), {field})]/following-sibling::td[1]').text
-                data.append(text)
-                print(text)
-            except NoSuchElementException:
-                print(f'Could not find "{field}" in {section}')
+            if field.startswith('//'):
+                continue
+
+            i = 0
+
+            while i < 10:
+                try:
+                    text = driver.find_element(By.XPATH,
+                                               f'//td[contains(descendant-or-self::*/text(), "{field}")]/following-sibling::td[1]').text
+                    data[field] = text
+                    break
+                except NoSuchElementException:
+                    print(f'Could not find "{field}" in {section}')
+                    break
+                except StaleElementReferenceException:
+                    print("stale element")
+                    pass
+                i += 1
     return data
 
 
@@ -150,7 +159,8 @@ def get():
     data = []
 
     browser_options = Options()
-
+    # browser_options.headless = True
+    browser_options.add_argument("--window-size=1920,1200")
     driver = webdriver.Firefox(service=Service(GeckoDriverManager().install()), options=browser_options)
     driver.install_addon('uBlock0@raymondhill.net.xpi', temporary=True)
     driver.maximize_window()
@@ -159,24 +169,88 @@ def get():
 
     delay = 20  # seconds
 
-    for program in programs:
-        url = f"https://freida.ama-assn.org{program['link']}"
-        driver.get(url)
+    for program_page in programs:
+        while True:
+            try:
+                name = program_page['title']
+                print(name)
+                url = f"https://freida.ama-assn.org{program_page['link']}"
+                driver.get(url)
 
-        overview = parse_tab(driver, OVERVIEW)
+                # WebDriverWait(driver, delay).until(
+                #     ec.presence_of_element_located((By.XPATH, '//div[@class="ama-modal__close"]'))).click()
 
-        if program['expanded'] is False:
-            continue
+                WebDriverWait(driver, delay).until(
+                    ec.presence_of_element_located((By.TAG_NAME, 'app-program-overview')))
 
-        driver.find_element(By.XPATH, '//div[contains(text(), "Program & Work Schedule")]').click()
-        program = parse_tab(driver, PROGRAM)
+                overview = parse_tab(driver, OVERVIEW)
 
-        driver.find_element(By.XPATH, '//div[contains(text(), "Features & Benefits")]').click()
-        features = parse_tab(driver, FEATURES)
+                location = driver.find_element(By.XPATH, '//div[@class="institutions__location ng-star-inserted"]')
+                location_string = location.find_element(By.XPATH, './/p').text
+                location_list = location_string.split('\n')
+                overview['Location line 1'] = location_list[0]
+                overview['Location line 2'] = location_list[1]
+                overview['Location line 3'] = location_list[2]
+                overview['Location line 4'] = location_list[3]
 
-        data.append({'overview': overview, 'program': program, 'features': features})
+                if program_page['expanded'] is False:
+                    break
+                    # continue
+                driver.implicitly_wait(2)
+                tab = WebDriverWait(driver, delay).until(
+                    ec.element_to_be_clickable((By.XPATH, '//div[contains(text(), "Program & Work Schedule")]')))
+                tab.click()
+                WebDriverWait(driver, delay).until(
+                    ec.presence_of_element_located((By.TAG_NAME, 'app-program-work-schedule')))
+                program = parse_tab(driver, PROGRAM)
+
+                program_faculty_table = driver.find_element(By.ID, 'program_faculty')
+                program_faculty = program_faculty_table.find_element(By.TAG_NAME, 'tbody')
+
+                rows = program_faculty.find_elements(By.TAG_NAME, 'tr')
+                full = rows[0].find_elements(By.TAG_NAME, 'td')
+                part = rows[1].find_elements(By.TAG_NAME, 'td')
+                total = rows[2].find_elements(By.TAG_NAME, 'td')
+
+                program['Full-time paid physician'] = full[1].text
+                program['Full-time paid non-physician'] = full[2].text
+
+                program['Part-time paid physician'] = part[1].text
+                program['Part-time paid non-physician'] = part[2].text
+
+                program['Total physician'] = total[1].text
+                program['Total non-physician'] = total[2].text
+
+                tab = WebDriverWait(driver, delay).until(
+                    ec.element_to_be_clickable((By.XPATH, '//div[contains(text(), "Features & Benefits")]')))
+                tab.click()
+                WebDriverWait(driver, delay).until(
+                    ec.presence_of_element_located((By.TAG_NAME, 'app-program-features-benefits')))
+                features = parse_tab(driver, FEATURES)
+
+                compensation_table = driver.find_element(By.ID, 'compensation')
+                program_faculty = compensation_table.find_element(By.TAG_NAME, 'tbody')
+
+                row = program_faculty.find_element(By.TAG_NAME, 'tr')
+                cols = row.find_elements(By.TAG_NAME, 'td')
+
+                features['Salary compensation'] = cols[1].text
+                features['Vacation days'] = cols[2].text
+                features['Sick days'] = cols[3].text
+
+                meta = {
+                    'Name': name,
+                    'Link': url
+                }
+
+                data.append({'meta': meta, 'overview': overview, 'program': program, 'features': features})
+                # driver.execute_script("window.localStorage.clear();")
+                break
+            except:
+                print("Unhandled exception")
+
     driver.quit()
-    print_data(data)
+    write_data(data)
 
 
 if __name__ == '__main__':

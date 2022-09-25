@@ -3,6 +3,9 @@ Avg hours/week of scheduled structured didactic activities
 Training at hospital outpatient clinics during 1st year
 Training during 1st year in ambulatory non-hospital community-based settings, e.g., physician offices, community clinics
 COMPENSATION AND LEAVE
+//Salary compensation
+//Vacation days
+//Sick days
 Salary paid by a non-profit institution
 Maximum number of paid days for family/medical leave
 Maximum number of unpaid days for family/medical leave
