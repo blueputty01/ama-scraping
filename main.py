@@ -1,4 +1,6 @@
 import os
+import time
+
 from dotenv import load_dotenv
 
 import csv
@@ -24,6 +26,7 @@ PASSWORD = os.getenv('PASSWORD')
 FEATURES = {}
 OVERVIEW = {}
 PROGRAM = {}
+BASIC = {}
 
 
 def parse_schema(dict, path):
@@ -146,6 +149,7 @@ def get():
     parse_schema(FEATURES, 'schemas/features.txt')
     parse_schema(OVERVIEW, 'schemas/overview.txt')
     parse_schema(PROGRAM, 'schemas/program.txt')
+    parse_schema(BASIC, 'schemas/basic.txt')
 
     try:
         f = open('programs.json', 'r')
@@ -183,7 +187,7 @@ def get():
                 WebDriverWait(driver, delay).until(
                     ec.presence_of_element_located((By.TAG_NAME, 'app-program-overview')))
 
-                overview = parse_tab(driver, OVERVIEW)
+                overview = parse_tab(driver, OVERVIEW if program_page['expanded'] else BASIC)
 
                 location = driver.find_element(By.XPATH, '//div[@class="institutions__location ng-star-inserted"]')
                 location_string = location.find_element(By.XPATH, './/p').text
@@ -196,10 +200,10 @@ def get():
                 if program_page['expanded'] is False:
                     break
                     # continue
-                driver.implicitly_wait(2)
+                time.sleep(1)
                 tab = WebDriverWait(driver, delay).until(
                     ec.element_to_be_clickable((By.XPATH, '//div[contains(text(), "Program & Work Schedule")]')))
-                tab.click()
+                driver.execute_script("arguments[0].click();", tab)
                 WebDriverWait(driver, delay).until(
                     ec.presence_of_element_located((By.TAG_NAME, 'app-program-work-schedule')))
                 program = parse_tab(driver, PROGRAM)
@@ -223,7 +227,7 @@ def get():
 
                 tab = WebDriverWait(driver, delay).until(
                     ec.element_to_be_clickable((By.XPATH, '//div[contains(text(), "Features & Benefits")]')))
-                tab.click()
+                driver.execute_script("arguments[0].click();", tab)
                 WebDriverWait(driver, delay).until(
                     ec.presence_of_element_located((By.TAG_NAME, 'app-program-features-benefits')))
                 features = parse_tab(driver, FEATURES)
@@ -246,8 +250,8 @@ def get():
                 data.append({'meta': meta, 'overview': overview, 'program': program, 'features': features})
                 # driver.execute_script("window.localStorage.clear();")
                 break
-            except:
-                print("Unhandled exception")
+            except Exception as e:
+                print(e)
 
     driver.quit()
     write_data(data)

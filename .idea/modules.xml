@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/ama-scraping-jessica.iml" filepath="$PROJECT_DIR$/ama-scraping-jessica.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/ama-scraping.iml" filepath="$PROJECT_DIR$/.idea/ama-scraping.iml" />
     </modules>
   </component>
 </project>
