@@ -1,6 +1,6 @@
 # 👩‍⚕️FREIDA Residency Program Database Scraping
 
-Downloads data from FREIDA Residency Program Database to .csv file for help medical students decide on their programs.
+Downloads data from FREIDA Residency Program Database to .csv file to help medical students decide on their programs.
 
 ### ⚙️ Technologies
 - Selenium
