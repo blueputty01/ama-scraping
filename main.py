@@ -44,20 +44,18 @@ def parse_schema(dict, path):
 
 
 def login(driver):
-    driver.get("https://fsso.ama-assn.org/login/account/login")
-
-    driver.find_element(By.ID, 'signupGo_username').send_keys(USERNAME)
-    driver.find_element(By.ID, 'signupGo_password').send_keys(PASSWORD)
-    driver.find_element(By.XPATH, '//button[@name="submitButton"]').click()
-
-    WebDriverWait(driver, 20).until(ec.url_to_be('https://fsso.ama-assn.org/login/account/return'))
-
     driver.get("https://freida.ama-assn.org")
     menu = WebDriverWait(driver, 20).until(
         ec.element_to_be_clickable((By.XPATH, '//div[contains(@class, "ama-ribbon__sign-in-dropdown ng-tns-c15-0")]')))
     menu.click()
     sign_in = WebDriverWait(driver, 20).until(ec.element_to_be_clickable((By.XPATH, '//a[@title="Sign In"]')))
     sign_in.click()
+
+    password_input = WebDriverWait(driver, 20).until(ec.presence_of_element_located((By.ID, 'mat-input-0')))
+
+    password_input.send_keys(USERNAME)
+    driver.find_element(By.ID, 'mat-input-1').send_keys(PASSWORD)
+    driver.find_element(By.XPATH, '//button[contains(@class, "btn-primary btn-submit")]').click()
 
     WebDriverWait(driver, 20).until(ec.url_to_be('https://freida.ama-assn.org/?check_logged_in=1'))
 
@@ -66,7 +64,8 @@ def get_urls():
     url = "https://freida-admin.ama-assn.org/api/node/program"
     params = {'filter[specialty][condition][operator]': 'IN',
               'filter[specialty][condition][path]': 'field_specialty.drupal_internal__nid',
-              'filter[specialty][condition][value][]': '43521',
+              'filter[specialty][condition][value][]': '43281',
+              'filter[specialty][condition][value][]': '43031',
               'sort': 'field_address.administrative_area,field_address.locality,field_specialty.title'}
     url += f'?={urllib.parse.urlencode(params)}'
 
