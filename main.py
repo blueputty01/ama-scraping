@@ -22,6 +22,7 @@ load_dotenv(override=True)
 
 USERNAME = os.environ.get('USERNAME')
 PASSWORD = os.getenv('PASSWORD')
+SPECIALITIES = [ '43281', '43031']
 
 FEATURES = {}
 OVERVIEW = {}
@@ -64,15 +65,17 @@ def get_urls():
     url = "https://freida-admin.ama-assn.org/api/node/program"
     params = {'filter[specialty][condition][operator]': 'IN',
               'filter[specialty][condition][path]': 'field_specialty.drupal_internal__nid',
-              'filter[specialty][condition][value][]': '43281',
-              'filter[specialty][condition][value][]': '43031',
+              'filter[specialty][condition][value][]': SPECIALITIES,
               'sort': 'field_address.administrative_area,field_address.locality,field_specialty.title'}
-    url += f'?={urllib.parse.urlencode(params)}'
+    # append each key value pair to the url without encoding the value, and splitting arrays into multiple key value pairs
+    url += '?' + '&'.join(f'{k}={v}' if not isinstance(v, list) else '&'.join(f'{k}={i}' for i in v) for k, v in
+                            params.items())
+
+    print(url)
 
     programs = []
 
     while True:
-        print(url)
         r = requests.get(url)
         response = r.json()
 
